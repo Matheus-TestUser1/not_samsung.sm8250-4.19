@@ -234,7 +234,7 @@ static struct sync_file *sync_file_merge(struct sync_file *a,
 
 			i_b++;
 		} else {
-			if (pt_a->seqno - pt_b->seqno <= INT_MAX)
+			if (__dma_fence_is_later(pt_a->seqno, pt_b->seqno))
 				add_fence(fences, &i, pt_a);
 			else
 				add_fence(fences, &i, pt_b);
