@@ -451,7 +451,7 @@ struct dma_buf {
 	const char *exp_name;
 	char *buf_name;
 	const char *name;
-	spinlock_t name_lock;
+	spinlock_t name_lock; /* spinlock to protect name access */
 #if defined(CONFIG_DEBUG_FS)
 	ktime_t ktime;
 #endif
