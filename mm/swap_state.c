@@ -166,7 +166,6 @@ void __delete_from_swap_cache(struct page *page, swp_entry_t entry)
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(!PageSwapCache(page), page);
 	VM_BUG_ON_PAGE(PageWriteback(page), page);
-	VM_BUG_ON(shadow && !radix_tree_exceptional_entry(shadow));
 
 	for (i = 0; i < nr; i++) {
 		void *entry = xas_store(&xas, NULL);
@@ -257,34 +256,31 @@ void delete_from_swap_cache(struct page *page)
 }
 
 void clear_shadow_from_swap_cache(int type, unsigned long begin,
-				unsigned long end)
+				  unsigned long end)
 {
 	unsigned long curr = begin;
 
 	for (;;) {
 		void *item;
-		void __rcu **slot;
-		struct radix_tree_iter iter;
 		swp_entry_t entry = swp_entry(type, curr);
-		struct address_space *address_space = swap_address_space(entry);
+		struct address_space *address_space =
+				swap_address_space(entry);
+		XA_STATE(xas, &address_space->i_pages, curr);
 
 		xa_lock_irq(&address_space->i_pages);
-		radix_tree_for_each_slot(slot, &address_space->i_pages,
-					 &iter, curr) {
-			item = radix_tree_deref_slot_protected(slot,
-					&address_space->i_pages.xa_lock);
-			if (radix_tree_exceptional_entry(item))
-				radix_tree_iter_delete(&address_space->i_pages,
-						       &iter, slot);
-			if (iter.next_index > end)
-				break;
+
+		xas_for_each(&xas, item, end) {
+			if (xa_is_value(item))
+				xas_store(&xas, NULL);
 		}
+
 		xa_unlock_irq(&address_space->i_pages);
 
 		/* search the next swapcache until we meet end */
 		curr >>= SWAP_ADDRESS_SPACE_SHIFT;
 		curr++;
 		curr <<= SWAP_ADDRESS_SPACE_SHIFT;
+
 		if (curr > end)
 			break;
 	}
@@ -394,7 +390,6 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 	struct page *found_page, *new_page = NULL;
 	struct address_space *swapper_space = swap_address_space(entry);
 	int err;
-	void *shadow;
 
 	*new_page_allocated = false;
 

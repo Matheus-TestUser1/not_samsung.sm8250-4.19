@@ -421,9 +421,8 @@ extern unsigned long total_swapcache_pages(void);
 extern void show_swap_cache_info(void);
 extern int add_to_swap(struct page *page);
 extern int add_to_swap_cache(struct page *, swp_entry_t, gfp_t);
-extern int __add_to_swap_cache(struct page *page, swp_entry_t entry,
-			void **shadowp);
-extern void __delete_from_swap_cache(struct page *, swp_entry_t entrypage, void *shadow);
+extern int __add_to_swap_cache(struct page *page, swp_entry_t entry);
+extern void __delete_from_swap_cache(struct page *, swp_entry_t entry);
 extern void delete_from_swap_cache(struct page *);
 extern void clear_shadow_from_swap_cache(int type, unsigned long begin,
 				unsigned long end);
@@ -582,7 +581,7 @@ static inline int add_to_swap_cache(struct page *page, swp_entry_t entry,
 }
 
 static inline void __delete_from_swap_cache(struct page *page,
-							swp_entry_t entry, void *shadow)
+							swp_entry_t entry)
 {
 }
 
