@@ -644,6 +644,57 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 		}
 	}
 
+	/* OC BYPASS: Add extra frequencies from DTS that exceed hardware LUT */
+	if (of_table && of_len > 0) {
+		int hw_max_freq = 0;
+		int last_valid_idx = 0;
+		u32 last_volt = 0;
+		
+		/* Find max hardware frequency and last valid index/voltage */
+		for (int j = 0; j < i; j++) {
+			if (c->table[j].frequency != CPUFREQ_ENTRY_INVALID) {
+				hw_max_freq = max(hw_max_freq, (int)c->table[j].frequency);
+				last_valid_idx = j;
+			}
+		}
+		
+		/* Get voltage from last valid entry */
+		if (last_valid_idx > 0) {
+			u32 data_volt = readl_relaxed(base_volt + last_valid_idx * lut_row_size);
+			last_volt = (data_volt & GENMASK(11, 0)) * 1000;
+		}
+		
+		/* Add OC frequencies from DTS that are above hardware max */
+		for (int j = 0; j < of_len && i < lut_max_entries; j++) {
+			if (of_table[j] > hw_max_freq) {
+				bool already_exists = false;
+				for (int k = 0; k < i; k++) {
+					if (c->table[k].frequency == of_table[j]) {
+						already_exists = true;
+						break;
+					}
+				}
+				if (!already_exists) {
+					c->table[i].frequency = of_table[j];
+					dev_info(dev, "OC bypass: adding freq=%d kHz at index=%d
+",
+						 c->table[i].frequency, i);
+					
+					/* Add OPP for each CPU in domain */
+					for_each_cpu(cpu, &c->related_cpus) {
+						cpu_dev = get_cpu_device(cpu);
+						if (!cpu_dev)
+							continue;
+						dev_pm_opp_add(cpu_dev, c->table[i].frequency * 1000,
+								   last_volt ? last_volt : volt);
+					}
+					max_index = i;
+					i++;
+				}
+			}
+		}
+	}
+
 	c->lut_max_entries = i;
 	c->table[i].frequency = CPUFREQ_TABLE_END;
 	for_each_cpu(cpu, &c->related_cpus) {
