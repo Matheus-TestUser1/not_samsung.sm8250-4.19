@@ -319,6 +319,7 @@
 			clock-names = "xo", "alternate";
 
 			qcom,lut-row-size = <4>;
+			qcom,lut-max-entries = <24>;    /* <-- AUMENTAR! Padrão é 20 */
 			qcom,skip-enable-check;
 
 			#freq-domain-cells = <2>;
@@ -4208,6 +4209,5 @@
 			<2745600>,
 			<2841600>,
 			<2956800>,
-			<3072000>,
-			<3200000>;
+			<3091200>;
 };
