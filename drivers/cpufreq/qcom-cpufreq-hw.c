@@ -537,7 +537,7 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 	u32 data, src, lval, i, core_count, prev_cc, prev_freq, cur_freq, volt;
 	u32 vc;
 	unsigned long cpu;
-	int ret, of_len, max_index;
+	int ret, of_len, max_index = 0;
 	u32 *of_table = NULL;
 	char tbl_name[] = "qcom,cpufreq-table-##";
 	bool invalidate_freq;
@@ -614,14 +614,10 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 				}
 			}
 
-			/*
-			 * Two of the same frequencies with the same core counts means
-			 * end of table.
-			 */
 			if (i > 0 && c->table[i - 1].frequency ==
 					c->table[i].frequency) {
 					struct cpufreq_frequency_table *prev =
-								&c->table[i - 1];
+							&c->table[i - 1];
 
 					if (prev_freq == CPUFREQ_ENTRY_INVALID)
 						prev->flags = CPUFREQ_BOOST_FREQ;
@@ -640,35 +636,32 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 				continue;
 			if (!invalidate_freq)
 				dev_pm_opp_add(cpu_dev, c->table[i].frequency * 1000,
-								volt);
+						 volt);
 		}
 	}
 
-	/* OC BYPASS: Add extra frequencies from DTS that exceed hardware LUT */
+	/* OC BYPASS: Add extra frequencies from DTS that exceed hardware LUT max */
 	if (of_table && of_len > 0) {
 		int hw_max_freq = 0;
-		int last_valid_idx = 0;
+		int last_valid_idx = -1;
 		u32 last_volt = 0;
-		
-		/* Find max hardware frequency and last valid index/voltage */
-		for (int j = 0; j < i; j++) {
+
+		for (int j = 0; j < (int)i; j++) {
 			if (c->table[j].frequency != CPUFREQ_ENTRY_INVALID) {
 				hw_max_freq = max(hw_max_freq, (int)c->table[j].frequency);
 				last_valid_idx = j;
 			}
 		}
-		
-		/* Get voltage from last valid entry */
-		if (last_valid_idx > 0) {
+
+		if (last_valid_idx >= 0) {
 			u32 data_volt = readl_relaxed(base_volt + last_valid_idx * lut_row_size);
 			last_volt = (data_volt & GENMASK(11, 0)) * 1000;
 		}
-		
-		/* Add OC frequencies from DTS that are above hardware max */
+
 		for (int j = 0; j < of_len && i < lut_max_entries; j++) {
-			if (of_table[j] > hw_max_freq) {
+			if ((int)of_table[j] > hw_max_freq) {
 				bool already_exists = false;
-				for (int k = 0; k < i; k++) {
+				for (int k = 0; k < (int)i; k++) {
 					if (c->table[k].frequency == of_table[j]) {
 						already_exists = true;
 						break;
@@ -676,17 +669,15 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 				}
 				if (!already_exists) {
 					c->table[i].frequency = of_table[j];
-					dev_info(dev, "OC bypass: adding freq=%d kHz at index=%d
-",
+					dev_info(dev, "OC bypass: adding freq=%d kHz at index=%d\n",
 						 c->table[i].frequency, i);
-					
-					/* Add OPP for each CPU in domain */
+
 					for_each_cpu(cpu, &c->related_cpus) {
 						cpu_dev = get_cpu_device(cpu);
 						if (!cpu_dev)
 							continue;
 						dev_pm_opp_add(cpu_dev, c->table[i].frequency * 1000,
-								   last_volt ? last_volt : volt);
+								   last_volt ? last_volt : 0);
 					}
 					max_index = i;
 					i++;
@@ -699,21 +690,21 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 	c->table[i].frequency = CPUFREQ_TABLE_END;
 	for_each_cpu(cpu, &c->related_cpus) {
 		per_cpu(cpufreq_boost_pcpu, cpu).c = c;
-		per_cpu(cpufreq_boost_pcpu, cpu).max_index = max_index - 1;
+		per_cpu(cpufreq_boost_pcpu, cpu).max_index = max_index;
 	}
 
 	if (of_table)
-			devm_kfree(dev, of_table);
+		devm_kfree(dev, of_table);
 
 	if (c->skip_data.skip) {
 		pr_err("%s Skip: Index[%u], Frequency[%u], Core Count %u, Final Index %u Actual Index %u Prev_Freq[%u] Prev_Index[%u] Prev_CC[%u]\n",
-				__func__, c->skip_data.high_temp_index,
-				c->skip_data.freq, c->skip_data.cc,
-				c->skip_data.final_index,
-				c->skip_data.low_temp_index,
-				c->skip_data.prev_freq,
-				c->skip_data.prev_index,
-				c->skip_data.prev_cc);
+			__func__, c->skip_data.high_temp_index,
+			c->skip_data.freq, c->skip_data.cc,
+			c->skip_data.final_index,
+			c->skip_data.low_temp_index,
+			c->skip_data.prev_freq,
+			c->skip_data.prev_index,
+			c->skip_data.prev_cc);
 	}
 
 	return 0;
@@ -724,7 +715,7 @@ err_cpufreq_table:
 	devm_kfree(dev, c->table);
 	return ret;
 }
-
+			
 static int qcom_get_related_cpus(int index, struct cpumask *m)
 {
 	struct device_node *cpu_np;
