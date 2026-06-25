@@ -668,9 +668,23 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 					}
 				}
 				if (!already_exists) {
+					// 1. Calcula o multiplicador L_VAL para a nova frequência
+					u32 lval = of_table[j] / 19200;
+					
+					// 2. Lê os dados da última frequência válida de fábrica (ex: 2.84 GHz)
+					u32 prev_freq_data = readl_relaxed(base_freq + last_valid_idx * lut_row_size);
+					u32 prev_volt_data = readl_relaxed(base_volt + last_valid_idx * lut_row_size);
+					
+					// 3. Mascara o L_VAL antigo e insere o novo L_VAL (os bits de core_count são mantidos)
+					u32 new_freq_data = (prev_freq_data & ~GENMASK(7, 0)) | lval;
+					
+					// 4. GRAVA DIRETO NA MEMÓRIA DO HARDWARE (OSM LUT)
+					writel_relaxed(new_freq_data, base_freq + i * lut_row_size);
+					writel_relaxed(prev_volt_data, base_volt + i * lut_row_size);
+
 					c->table[i].frequency = of_table[j];
-					dev_info(dev, "OC bypass: adding freq=%d kHz at index=%d\n",
-						 c->table[i].frequency, i);
+					dev_info(dev, "OC bypass: HW gravado freq=%d kHz (L_VAL=%d) no index=%d\n",
+						 c->table[i].frequency, lval, i);
 
 					for_each_cpu(cpu, &c->related_cpus) {
 						cpu_dev = get_cpu_device(cpu);
