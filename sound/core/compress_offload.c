@@ -1156,17 +1156,6 @@ int snd_compress_new(struct snd_card *card, int device,
 }
 EXPORT_SYMBOL_GPL(snd_compress_new);
 
-/*
- * snd_compress_free: free compress device
- * @card: sound card pointer
- * @compr: compress device pointer
- */
-void snd_compress_free(struct snd_card *card, struct snd_compr *compr)
-{
-	snd_device_free(card, compr);
-}
-EXPORT_SYMBOL(snd_compress_free);
-
 MODULE_DESCRIPTION("ALSA Compressed offload framework");
 MODULE_AUTHOR("Vinod Koul <vinod.koul@linux.intel.com>");
 MODULE_LICENSE("GPL v2");
