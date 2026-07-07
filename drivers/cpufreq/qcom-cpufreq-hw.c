@@ -586,6 +586,20 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 		else
 			c->table[i].frequency = c->cpu_hw_rate / 1000;
 
+          /* ========================================================== */
+		/* INÍCIO DO SEU DUMP (INSERIR ESTE BLOCO EXATAMENTE AQUI)    */
+		/* ========================================================== */
+		if (domain_index == 2) {
+			pr_info("CPUFREQ-HW-DEBUG: Idx %02d | Freq Calc: %4u MHz | RawFreq: 0x%08X | RawVolt: 0x%08X\n",
+				i, 
+				(c->table[i].frequency / 1000), 
+				readl_relaxed(base_freq + i * lut_row_size), 
+				readl_relaxed(base_volt + i * lut_row_size));
+		}
+		/* ========================================================== */
+		/* FIM DO DUMP                                                */
+		/* ========================================================== */
+
 		cur_freq = c->table[i].frequency;
 
 		dev_dbg(dev, "index=%d freq=%d, core_count %d\n",
